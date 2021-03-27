@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    .board .cell-third {
+        border-right-color: theme('colors.gray.500');
+        border-right-width: theme('borderWidth.4');
+        border-bottom-color: theme('colors.gray.300');
+    }
+
+    .board td {
+        @apply align-middle text-center;
+    }
+}
