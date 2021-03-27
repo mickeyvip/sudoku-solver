@@ -8,7 +8,7 @@ module.exports = {
     src: '/dist'
   },
   plugins: [
-    'snowpack-plugin-elm',
+    ['snowpack-plugin-elm', { debugger: 'dev' }],
     '@snowpack/plugin-postcss'
   ],
   packageOptions: {
