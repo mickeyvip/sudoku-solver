@@ -90,6 +90,9 @@ update msg model =
                                             Just CellEmpty ->
                                                 Array.set rowIndex (Array.set colIndex (CellUser n) row) model.board
 
+                                            Just (CellUser _) ->
+                                                Array.set rowIndex (Array.set colIndex (CellUser n) row) model.board
+
                                             _ ->
                                                 model.board
                                     )
