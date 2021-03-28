@@ -89,7 +89,7 @@ cellView board selectedCell rowIndex colIndex =
             Array.get rowIndex board
                 |> Maybe.andThen (\row -> Array.get colIndex row)
 
-        ( cellStr, cellTextClassName ) =
+        ( cellStr, cellClassName ) =
             cellMaybe
                 |> Maybe.map
                     (\cell ->
@@ -98,10 +98,10 @@ cellView board selectedCell rowIndex colIndex =
                                 ( String.fromInt val, "text-gray-600 dark:text-gray-50" )
 
                             CellUser val ->
-                                ( String.fromInt val, "text-blue-500 dark:text-blue-300" )
+                                ( String.fromInt val, "text-blue-500 dark:text-blue-300 hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
 
                             CellEmpty ->
-                                ( "", "" )
+                                ( "", "hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
                     )
                 |> Maybe.withDefault ( "", "" )
 
@@ -125,7 +125,7 @@ cellView board selectedCell rowIndex colIndex =
                     ""
 
         classNames =
-            [ "w-12 h-12 border-r-2 border-b-2 text-3xl hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in", className, cellTextClassName, selectedCellClassName ]
+            [ "w-12 h-12 border-r-2 border-b-2 text-3xl", className, cellClassName, selectedCellClassName ]
     in
     Html.td
         [ class (String.join " " classNames), onClick (CellClick (CellCoords ( rowIndex, colIndex ))) ]
