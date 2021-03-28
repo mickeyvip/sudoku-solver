@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Array
 import Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList)
@@ -6,6 +6,7 @@ import Browser
 import Browser.Events exposing (onKeyDown)
 import Html
 import Html.Attributes exposing (class)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 
 
@@ -17,7 +18,8 @@ type alias Model =
 
 type Msg
     = BoardMsg Board.Msg
-    | CellClicked Int
+    | CellKeyPressed Int
+    | ToggleDarkMode
 
 
 boardEmpty : Board
@@ -55,12 +57,28 @@ update msg model =
         BoardMsg boardMsg ->
             case boardMsg of
                 CellClick (CellCoords ( rowIndex, colIndex )) ->
-                    ( { model | selectedCell = Just (CellCoords ( rowIndex, colIndex )) }, Cmd.none )
+                    let
+                        selectedCellNew =
+                            Array.get rowIndex model.board
+                                |> Maybe.andThen
+                                    (\row ->
+                                        case Array.get colIndex row of
+                                            Just CellEmpty ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
+
+                                            Just (CellUser _) ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
+
+                                            _ ->
+                                                Nothing
+                                    )
+                    in
+                    ( { model | selectedCell = selectedCellNew }, Cmd.none )
 
                 KeyDown key ->
                     ( model, Cmd.none )
 
-        CellClicked n ->
+        CellKeyPressed n ->
             let
                 newBoard =
                     case model.selectedCell of
@@ -70,7 +88,7 @@ update msg model =
                                     (\row ->
                                         case Array.get colIndex row of
                                             Just CellEmpty ->
-                                                Array.set rowIndex (Array.set colIndex (Cell n) row) model.board
+                                                Array.set rowIndex (Array.set colIndex (CellUser n) row) model.board
 
                                             _ ->
                                                 model.board
@@ -82,11 +100,15 @@ update msg model =
             in
             ( { model | board = newBoard }, Cmd.none )
 
+        ToggleDarkMode ->
+            ( model, sendMessage "toggle-dark-mode" )
+
 
 view : Model -> Html.Html Msg
 view model =
     Html.main_ [ class "p-5" ]
-        [ Html.h1 [ class "text-2xl" ] [ Html.text "Elm Sudoku Solver" ]
+        [ Html.h1 [ class "text-3xl dark:text-white mb-5" ] [ Html.text "Elm Sudoku Solver" ]
+        , Html.button [ class "border rounded py-2 px-4 mb-5 bg-gray-800 text-gray-50 dark:bg-gray-50 dark:text-gray-800", onClick ToggleDarkMode ] [ Html.text "Toggle Dark Mode" ]
         , Html.map BoardMsg (boardView model.board model.selectedCell)
         ]
 
@@ -107,7 +129,7 @@ keyDecoder =
                     Nothing ->
                         Decode.fail "Not an integer"
             )
-        |> Decode.map CellClicked
+        |> Decode.map CellKeyPressed
 
 
 subscriptions : Model -> Sub Msg
@@ -118,6 +140,9 @@ subscriptions model =
 
         Nothing ->
             Sub.none
+
+
+port sendMessage : String -> Cmd msg
 
 
 main =
