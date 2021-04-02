@@ -1,7 +1,7 @@
 port module Main exposing (main)
 
 import Array
-import Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList)
+import Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList, getCell, setCell)
 import Browser
 import Browser.Events exposing (onKeyDown)
 import Html
@@ -16,15 +16,19 @@ type alias Model =
     }
 
 
+type CellKey
+    = DeleteKey
+    | UpKey
+    | DownKey
+    | LeftKey
+    | RightKey
+    | NumberKey Int
+
+
 type Msg
     = BoardMsg Board.Msg
-    | CellKeyPressed Int
+    | CellKeyPressed CellKey
     | ToggleDarkMode
-
-
-boardEmpty : Board
-boardEmpty =
-    Array.repeat 9 (Array.repeat 9 CellEmpty)
 
 
 board1 : Board
@@ -78,30 +82,79 @@ update msg model =
                 KeyDown key ->
                     ( model, Cmd.none )
 
-        CellKeyPressed n ->
+        CellKeyPressed cellKey ->
             let
+                newSelectedCell =
+                    model.selectedCell
+                        |> Maybe.andThen
+                            (\(CellCoords ( rowIndex, colIndex )) ->
+                                case cellKey of
+                                    UpKey ->
+                                        if rowIndex > 0 then
+                                            Just <| CellCoords ( rowIndex - 1, colIndex )
+
+                                        else
+                                            model.selectedCell
+
+                                    DownKey ->
+                                        if rowIndex < 8 then
+                                            Just <| CellCoords ( rowIndex + 1, colIndex )
+
+                                        else
+                                            model.selectedCell
+
+                                    LeftKey ->
+                                        if colIndex > 0 then
+                                            Just <| CellCoords ( rowIndex, colIndex - 1 )
+
+                                        else
+                                            model.selectedCell
+
+                                    RightKey ->
+                                        if colIndex < 8 then
+                                            Just <| CellCoords ( rowIndex, colIndex + 1 )
+
+                                        else
+                                            model.selectedCell
+
+                                    _ ->
+                                        model.selectedCell
+                            )
+
                 newBoard =
-                    case model.selectedCell of
-                        Just (CellCoords ( rowIndex, colIndex )) ->
-                            Array.get rowIndex model.board
-                                |> Maybe.map
-                                    (\row ->
-                                        case Array.get colIndex row of
-                                            Just CellEmpty ->
-                                                Array.set rowIndex (Array.set colIndex (CellUser n) row) model.board
+                    model.selectedCell
+                        |> Maybe.andThen
+                            (\(CellCoords ( rowIndex, colIndex )) ->
+                                getCell rowIndex colIndex model.board
+                                    |> Maybe.andThen
+                                        (\cell ->
+                                            case cell of
+                                                CellEmpty ->
+                                                    case cellKey of
+                                                        NumberKey n ->
+                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
 
-                                            Just (CellUser _) ->
-                                                Array.set rowIndex (Array.set colIndex (CellUser n) row) model.board
+                                                        _ ->
+                                                            Just model.board
 
-                                            _ ->
-                                                model.board
-                                    )
-                                |> Maybe.withDefault model.board
+                                                CellUser _ ->
+                                                    case cellKey of
+                                                        NumberKey n ->
+                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
 
-                        Nothing ->
-                            model.board
+                                                        DeleteKey ->
+                                                            Just <| setCell rowIndex colIndex CellEmpty model.board
+
+                                                        _ ->
+                                                            Just <| model.board
+
+                                                _ ->
+                                                    Just <| model.board
+                                        )
+                            )
+                        |> Maybe.withDefault model.board
             in
-            ( { model | board = newBoard }, Cmd.none )
+            ( { model | board = newBoard, selectedCell = newSelectedCell }, Cmd.none )
 
         ToggleDarkMode ->
             ( model, sendMessage "toggle-dark-mode" )
@@ -111,20 +164,22 @@ view : Model -> Html.Html Msg
 view model =
     Html.main_ [ class "p-5" ]
         [ Html.h1 [ class "text-3xl dark:text-white mb-5" ] [ Html.text "Elm Sudoku Solver" ]
-        , Html.button [ class "border rounded py-2 px-4 mb-5 bg-gray-800 text-gray-50 dark:bg-gray-50 dark:text-gray-800", onClick ToggleDarkMode ] [ Html.text "Toggle Dark Mode" ]
+        , Html.button
+            [ class "border rounded py-2 px-4 mb-5 bg-gray-800 text-gray-50 dark:bg-gray-50 dark:text-gray-800", onClick ToggleDarkMode ]
+            [ Html.text "Toggle Dark Mode" ]
         , Html.map BoardMsg (boardView model.board model.selectedCell)
         ]
 
 
-keyDecoder : Decode.Decoder Msg
-keyDecoder =
+cellKeyNumberDecoder : Decode.Decoder Msg
+cellKeyNumberDecoder =
     Decode.field "key" Decode.string
         |> Decode.andThen
             (\key ->
                 case String.toInt key of
                     Just n ->
                         if n >= 1 && n <= 9 then
-                            Decode.succeed n
+                            Decode.succeed (NumberKey n)
 
                         else
                             Decode.fail "Integer is not between 1 and 9"
@@ -135,11 +190,43 @@ keyDecoder =
         |> Decode.map CellKeyPressed
 
 
+cellKeyActionDecoder : Decode.Decoder Msg
+cellKeyActionDecoder =
+    Decode.field "key" Decode.string
+        |> Decode.andThen
+            (\key ->
+                case key of
+                    "Delete" ->
+                        Decode.succeed DeleteKey
+
+                    "ArrowUp" ->
+                        Decode.succeed UpKey
+
+                    "ArrowDown" ->
+                        Decode.succeed DownKey
+
+                    "ArrowLeft" ->
+                        Decode.succeed LeftKey
+
+                    "ArrowRight" ->
+                        Decode.succeed RightKey
+
+                    _ ->
+                        Decode.fail "Unsupported key pressed"
+            )
+        |> Decode.map CellKeyPressed
+
+
+cellKeyDecoder : Decode.Decoder Msg
+cellKeyDecoder =
+    Decode.oneOf [ cellKeyNumberDecoder, cellKeyActionDecoder ]
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model.selectedCell of
         Just _ ->
-            onKeyDown keyDecoder
+            onKeyDown cellKeyDecoder
 
         Nothing ->
             Sub.none

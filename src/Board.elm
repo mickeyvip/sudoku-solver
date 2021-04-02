@@ -1,7 +1,6 @@
-module Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList)
+module Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList, getCell, setCell)
 
 import Array exposing (Array)
-import Browser.Events exposing (onKeyDown)
 import Html
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
@@ -27,11 +26,6 @@ type Msg
     | KeyDown String
 
 
-keyDecoder : Decode.Decoder String
-keyDecoder =
-    Decode.field "key" Decode.string
-
-
 fromList : List (List Int) -> Board
 fromList boardAsList =
     let
@@ -49,6 +43,41 @@ fromList boardAsList =
                 rowList
                     |> List.map intToCell
                     |> Array.fromList
+            )
+
+
+setCell : Int -> Int -> Cell -> Board -> Board
+setCell rowIndex colIndex newCell board =
+    let
+        updateCellOnBoard rowIndex_ colIndex_ row_ =
+            Array.set rowIndex_ (Array.set colIndex_ newCell row_) board
+    in
+    Array.get rowIndex board
+        |> Maybe.andThen
+            (\row ->
+                Array.get colIndex row
+                    |> Maybe.andThen
+                        (\cell ->
+                            case cell of
+                                CellEmpty ->
+                                    Just <| updateCellOnBoard rowIndex colIndex row
+
+                                CellUser _ ->
+                                    Just <| updateCellOnBoard rowIndex colIndex row
+
+                                _ ->
+                                    Just <| board
+                        )
+            )
+        |> Maybe.withDefault board
+
+
+getCell : Int -> Int -> Board -> Maybe Cell
+getCell rowIndex colIndex board =
+    Array.get rowIndex board
+        |> Maybe.andThen
+            (\row ->
+                Array.get colIndex row
             )
 
 
@@ -98,7 +127,7 @@ cellView board selectedCell rowIndex colIndex =
                                 ( String.fromInt val, "text-gray-600 dark:text-gray-50" )
 
                             CellUser val ->
-                                ( String.fromInt val, "text-blue-500 dark:text-blue-300 hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
+                                ( String.fromInt val, "text-blue-500 dark:text-blue-300" )
 
                             CellEmpty ->
                                 ( "", "hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
