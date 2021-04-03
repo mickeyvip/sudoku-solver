@@ -1,6 +1,7 @@
-module Board exposing (Board, Cell(..), CellCoords(..), Msg(..), boardView, fromList, getCell, setCell)
+module Board exposing (Board, Model, Msg, fromList, subscriptions, update, view)
 
 import Array exposing (Array)
+import Browser.Events exposing (onKeyDown)
 import Html
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
@@ -13,6 +14,15 @@ type Cell
     | CellUser Int
 
 
+type CellKey
+    = DeleteKey
+    | UpKey
+    | DownKey
+    | LeftKey
+    | RightKey
+    | NumberKey Int
+
+
 type alias Board =
     Array (Array Cell)
 
@@ -21,9 +31,15 @@ type CellCoords
     = CellCoords ( Int, Int )
 
 
+type alias Model =
+    { board : Board
+    , selectedCell : Maybe CellCoords
+    }
+
+
 type Msg
     = CellClick CellCoords
-    | KeyDown String
+    | CellKeyPressed CellKey
 
 
 fromList : List (List Int) -> Board
@@ -81,11 +97,108 @@ getCell rowIndex colIndex board =
             )
 
 
-boardView : Board -> Maybe CellCoords -> Html.Html Msg
-boardView board selectedCell =
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        CellClick (CellCoords ( rowIndex, colIndex )) ->
+            let
+                selectedCellNew =
+                    Array.get rowIndex model.board
+                        |> Maybe.andThen
+                            (\row ->
+                                case Array.get colIndex row of
+                                    Just CellEmpty ->
+                                        Just (CellCoords ( rowIndex, colIndex ))
+
+                                    Just (CellUser _) ->
+                                        Just (CellCoords ( rowIndex, colIndex ))
+
+                                    _ ->
+                                        Nothing
+                            )
+            in
+            { model | selectedCell = selectedCellNew }
+
+        CellKeyPressed cellKey ->
+            let
+                newSelectedCell =
+                    model.selectedCell
+                        |> Maybe.andThen
+                            (\(CellCoords ( rowIndex, colIndex )) ->
+                                case cellKey of
+                                    UpKey ->
+                                        if rowIndex > 0 then
+                                            Just <| CellCoords ( rowIndex - 1, colIndex )
+
+                                        else
+                                            model.selectedCell
+
+                                    DownKey ->
+                                        if rowIndex < 8 then
+                                            Just <| CellCoords ( rowIndex + 1, colIndex )
+
+                                        else
+                                            model.selectedCell
+
+                                    LeftKey ->
+                                        if colIndex > 0 then
+                                            Just <| CellCoords ( rowIndex, colIndex - 1 )
+
+                                        else
+                                            model.selectedCell
+
+                                    RightKey ->
+                                        if colIndex < 8 then
+                                            Just <| CellCoords ( rowIndex, colIndex + 1 )
+
+                                        else
+                                            model.selectedCell
+
+                                    _ ->
+                                        model.selectedCell
+                            )
+
+                newBoard =
+                    model.selectedCell
+                        |> Maybe.andThen
+                            (\(CellCoords ( rowIndex, colIndex )) ->
+                                getCell rowIndex colIndex model.board
+                                    |> Maybe.andThen
+                                        (\cell ->
+                                            case cell of
+                                                CellEmpty ->
+                                                    case cellKey of
+                                                        NumberKey n ->
+                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
+
+                                                        _ ->
+                                                            Just model.board
+
+                                                CellUser _ ->
+                                                    case cellKey of
+                                                        NumberKey n ->
+                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
+
+                                                        DeleteKey ->
+                                                            Just <| setCell rowIndex colIndex CellEmpty model.board
+
+                                                        _ ->
+                                                            Just <| model.board
+
+                                                _ ->
+                                                    Just <| model.board
+                                        )
+                            )
+                        |> Maybe.withDefault model.board
+            in
+            { model | board = newBoard, selectedCell = newSelectedCell }
+
+
+view : Model -> Html.Html Msg
+view model =
     Html.table [ class "board" ]
         (List.range 0 2
-            |> List.map (groupView board selectedCell)
+            |> List.map (groupView model.board model.selectedCell)
         )
 
 
@@ -127,7 +240,7 @@ cellView board selectedCell rowIndex colIndex =
                                 ( String.fromInt val, "text-gray-600 dark:text-gray-50" )
 
                             CellUser val ->
-                                ( String.fromInt val, "text-blue-500 dark:text-blue-300" )
+                                ( String.fromInt val, "hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-500 dark:text-blue-300" )
 
                             CellEmpty ->
                                 ( "", "hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
@@ -159,3 +272,62 @@ cellView board selectedCell rowIndex colIndex =
     Html.td
         [ class (String.join " " classNames), onClick (CellClick (CellCoords ( rowIndex, colIndex ))) ]
         [ Html.text cellStr ]
+
+
+cellKeyNumberDecoder : Decode.Decoder Msg
+cellKeyNumberDecoder =
+    Decode.field "key" Decode.string
+        |> Decode.andThen
+            (\key ->
+                case String.toInt key of
+                    Just n ->
+                        if n >= 1 && n <= 9 then
+                            Decode.succeed (NumberKey n)
+
+                        else
+                            Decode.fail "Integer is not between 1 and 9"
+
+                    Nothing ->
+                        Decode.fail "Not an integer"
+            )
+        |> Decode.map CellKeyPressed
+
+
+cellKeyActionDecoder : Decode.Decoder Msg
+cellKeyActionDecoder =
+    Decode.field "key" Decode.string
+        |> Decode.andThen
+            (\key ->
+                case key of
+                    "Delete" ->
+                        Decode.succeed DeleteKey
+
+                    "Backspace" ->
+                        Decode.succeed DeleteKey
+
+                    "ArrowUp" ->
+                        Decode.succeed UpKey
+
+                    "ArrowDown" ->
+                        Decode.succeed DownKey
+
+                    "ArrowLeft" ->
+                        Decode.succeed LeftKey
+
+                    "ArrowRight" ->
+                        Decode.succeed RightKey
+
+                    _ ->
+                        Decode.fail "Unsupported key pressed"
+            )
+        |> Decode.map CellKeyPressed
+
+
+cellKeyDecoder : Decode.Decoder Msg
+cellKeyDecoder =
+    Decode.oneOf [ cellKeyNumberDecoder, cellKeyActionDecoder ]
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    onKeyDown cellKeyDecoder
