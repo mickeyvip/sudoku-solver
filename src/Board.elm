@@ -114,31 +114,74 @@ update msg model =
                                         Just (CellCoords ( rowIndex, colIndex ))
 
                                     _ ->
-                                        Nothing
+                                        model.selectedCell
                             )
             in
             { model | selectedCell = selectedCellNew }
 
         CellKeyPressed cellKey ->
             let
+                getPreviousRowIndex : Int -> Int -> Maybe Int
+                getPreviousRowIndex rowIndex colIndex =
+                    model.board
+                        |> Array.indexedMap Tuple.pair
+                        |> Array.slice 0 rowIndex
+                        |> Array.filter
+                            (\( _, row ) ->
+                                case Array.get colIndex row of
+                                    Just (Cell _) ->
+                                        False
+
+                                    Nothing ->
+                                        False
+
+                                    _ ->
+                                        True
+                            )
+                        |> (\indexedRows -> Array.get (Array.length indexedRows - 1) indexedRows)
+                        |> Maybe.map Tuple.first
+
+                getNextRowIndex : Int -> Int -> Maybe Int
+                getNextRowIndex rowIndex colIndex =
+                    model.board
+                        |> Array.indexedMap Tuple.pair
+                        |> Array.slice (rowIndex + 1) (Array.length model.board)
+                        |> Array.filter
+                            (\( _, row ) ->
+                                case Array.get colIndex row of
+                                    Just (Cell _) ->
+                                        False
+
+                                    Nothing ->
+                                        False
+
+                                    _ ->
+                                        True
+                            )
+                        |> Array.get 0
+                        |> Maybe.map Tuple.first
+
+                newSelectedCell : Maybe CellCoords
                 newSelectedCell =
                     model.selectedCell
                         |> Maybe.andThen
                             (\(CellCoords ( rowIndex, colIndex )) ->
                                 case cellKey of
                                     UpKey ->
-                                        if rowIndex > 0 then
-                                            Just <| CellCoords ( rowIndex - 1, colIndex )
+                                        case getPreviousRowIndex rowIndex colIndex of
+                                            Just previousRowIndex ->
+                                                Just (CellCoords ( previousRowIndex, colIndex ))
 
-                                        else
-                                            model.selectedCell
+                                            _ ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
 
                                     DownKey ->
-                                        if rowIndex < 8 then
-                                            Just <| CellCoords ( rowIndex + 1, colIndex )
+                                        case getNextRowIndex rowIndex colIndex of
+                                            Just nextRowIndex ->
+                                                Just (CellCoords ( nextRowIndex, colIndex ))
 
-                                        else
-                                            model.selectedCell
+                                            _ ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
 
                                     LeftKey ->
                                         if colIndex > 0 then
