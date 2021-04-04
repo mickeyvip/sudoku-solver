@@ -14,12 +14,16 @@ type Cell
     | CellUser Int
 
 
+type Direction
+    = Up
+    | Down
+    | Left
+    | Right
+
+
 type CellKey
     = DeleteKey
-    | UpKey
-    | DownKey
-    | LeftKey
-    | RightKey
+    | NavigationKey Direction
     | NumberKey Int
 
 
@@ -119,7 +123,7 @@ update msg model =
             in
             { model | selectedCell = selectedCellNew }
 
-        CellKeyPressed cellKey ->
+        CellKeyPressed (NavigationKey direction) ->
             let
                 getPreviousRowIndex : Int -> Int -> Maybe Int
                 getPreviousRowIndex rowIndex colIndex =
@@ -161,13 +165,57 @@ update msg model =
                         |> Array.get 0
                         |> Maybe.map Tuple.first
 
+                getPreviousColIndex : Int -> Int -> Maybe Int
+                getPreviousColIndex rowIndex colIndex =
+                    model.board
+                        |> Array.get rowIndex
+                        |> Maybe.andThen
+                            (\row ->
+                                row
+                                    |> Array.indexedMap Tuple.pair
+                                    |> Array.slice 0 colIndex
+                                    |> Array.filter
+                                        (\( _, cell ) ->
+                                            case cell of
+                                                Cell _ ->
+                                                    False
+
+                                                _ ->
+                                                    True
+                                        )
+                                    |> (\indexedCells -> Array.get (Array.length indexedCells - 1) indexedCells)
+                                    |> Maybe.map Tuple.first
+                            )
+
+                getNextColIndex : Int -> Int -> Maybe Int
+                getNextColIndex rowIndex colIndex =
+                    model.board
+                        |> Array.get rowIndex
+                        |> Maybe.andThen
+                            (\row ->
+                                row
+                                    |> Array.indexedMap Tuple.pair
+                                    |> Array.slice (colIndex + 1) (Array.length row)
+                                    |> Array.filter
+                                        (\( _, cell ) ->
+                                            case cell of
+                                                Cell _ ->
+                                                    False
+
+                                                _ ->
+                                                    True
+                                        )
+                                    |> (\indexedCells -> Array.get 0 indexedCells)
+                                    |> Maybe.map Tuple.first
+                            )
+
                 newSelectedCell : Maybe CellCoords
                 newSelectedCell =
                     model.selectedCell
                         |> Maybe.andThen
                             (\(CellCoords ( rowIndex, colIndex )) ->
-                                case cellKey of
-                                    UpKey ->
+                                case direction of
+                                    Up ->
                                         case getPreviousRowIndex rowIndex colIndex of
                                             Just previousRowIndex ->
                                                 Just (CellCoords ( previousRowIndex, colIndex ))
@@ -175,7 +223,7 @@ update msg model =
                                             _ ->
                                                 Just (CellCoords ( rowIndex, colIndex ))
 
-                                    DownKey ->
+                                    Down ->
                                         case getNextRowIndex rowIndex colIndex of
                                             Just nextRowIndex ->
                                                 Just (CellCoords ( nextRowIndex, colIndex ))
@@ -183,24 +231,27 @@ update msg model =
                                             _ ->
                                                 Just (CellCoords ( rowIndex, colIndex ))
 
-                                    LeftKey ->
-                                        if colIndex > 0 then
-                                            Just <| CellCoords ( rowIndex, colIndex - 1 )
+                                    Left ->
+                                        case getPreviousColIndex rowIndex colIndex of
+                                            Just previousColIndex ->
+                                                Just (CellCoords ( rowIndex, previousColIndex ))
 
-                                        else
-                                            model.selectedCell
+                                            _ ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
 
-                                    RightKey ->
-                                        if colIndex < 8 then
-                                            Just <| CellCoords ( rowIndex, colIndex + 1 )
+                                    Right ->
+                                        case getNextColIndex rowIndex colIndex of
+                                            Just nextColIndex ->
+                                                Just (CellCoords ( rowIndex, nextColIndex ))
 
-                                        else
-                                            model.selectedCell
-
-                                    _ ->
-                                        model.selectedCell
+                                            _ ->
+                                                Just (CellCoords ( rowIndex, colIndex ))
                             )
+            in
+            { model | selectedCell = newSelectedCell }
 
+        CellKeyPressed cellKey ->
+            let
                 newBoard =
                     model.selectedCell
                         |> Maybe.andThen
@@ -234,7 +285,7 @@ update msg model =
                             )
                         |> Maybe.withDefault model.board
             in
-            { model | board = newBoard, selectedCell = newSelectedCell }
+            { model | board = newBoard }
 
 
 view : Model -> Html.Html Msg
@@ -349,16 +400,16 @@ cellKeyActionDecoder =
                         Decode.succeed DeleteKey
 
                     "ArrowUp" ->
-                        Decode.succeed UpKey
+                        Decode.succeed (NavigationKey Up)
 
                     "ArrowDown" ->
-                        Decode.succeed DownKey
+                        Decode.succeed (NavigationKey Down)
 
                     "ArrowLeft" ->
-                        Decode.succeed LeftKey
+                        Decode.succeed (NavigationKey Left)
 
                     "ArrowRight" ->
-                        Decode.succeed RightKey
+                        Decode.succeed (NavigationKey Right)
 
                     _ ->
                         Decode.fail "Unsupported key pressed"
