@@ -250,37 +250,45 @@ update msg model =
             in
             { model | selectedCell = newSelectedCell }
 
-        CellKeyPressed cellKey ->
+        CellKeyPressed DeleteKey ->
             let
                 newBoard =
                     model.selectedCell
                         |> Maybe.andThen
                             (\(CellCoords ( rowIndex, colIndex )) ->
                                 getCell rowIndex colIndex model.board
-                                    |> Maybe.andThen
+                                    |> Maybe.map
+                                        (\cell ->
+                                            case cell of
+                                                CellUser _ ->
+                                                    setCell rowIndex colIndex CellEmpty model.board
+
+                                                _ ->
+                                                    model.board
+                                        )
+                            )
+                        |> Maybe.withDefault model.board
+            in
+            { model | board = newBoard }
+
+        CellKeyPressed (NumberKey n) ->
+            let
+                newBoard =
+                    model.selectedCell
+                        |> Maybe.andThen
+                            (\(CellCoords ( rowIndex, colIndex )) ->
+                                getCell rowIndex colIndex model.board
+                                    |> Maybe.map
                                         (\cell ->
                                             case cell of
                                                 CellEmpty ->
-                                                    case cellKey of
-                                                        NumberKey n ->
-                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
-
-                                                        _ ->
-                                                            Just model.board
+                                                    setCell rowIndex colIndex (CellUser n) model.board
 
                                                 CellUser _ ->
-                                                    case cellKey of
-                                                        NumberKey n ->
-                                                            Just <| setCell rowIndex colIndex (CellUser n) model.board
-
-                                                        DeleteKey ->
-                                                            Just <| setCell rowIndex colIndex CellEmpty model.board
-
-                                                        _ ->
-                                                            Just <| model.board
+                                                    setCell rowIndex colIndex (CellUser n) model.board
 
                                                 _ ->
-                                                    Just <| model.board
+                                                    model.board
                                         )
                             )
                         |> Maybe.withDefault model.board
