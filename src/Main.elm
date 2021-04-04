@@ -34,7 +34,7 @@ board1 =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { boardModel = Board.Model board1 Nothing
+    ( { boardModel = Board.initialModel |> Board.setBoard board1
       }
     , Cmd.none
     )

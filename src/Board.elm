@@ -1,4 +1,4 @@
-module Board exposing (Board, Model, Msg, fromList, subscriptions, update, view)
+module Board exposing (Board, Model, Msg, fromList, initialModel, setBoard, subscriptions, update, view)
 
 import Array exposing (Array)
 import Browser.Events exposing (onKeyDown)
@@ -38,12 +38,28 @@ type CellCoords
 type alias Model =
     { board : Board
     , selectedCell : Maybe CellCoords
+    , valid : Bool
     }
 
 
 type Msg
     = CellClick CellCoords
     | CellKeyPressed CellKey
+
+
+emptyBoard : Board
+emptyBoard =
+    Array.repeat 9 (Array.repeat 9 CellEmpty)
+
+
+initialModel : Model
+initialModel =
+    Model emptyBoard Nothing True
+
+
+validateBoard : Board -> Bool
+validateBoard board =
+    True
 
 
 fromList : List (List Int) -> Board
@@ -64,6 +80,15 @@ fromList boardAsList =
                     |> List.map intToCell
                     |> Array.fromList
             )
+
+
+setBoard : Board -> Model -> Model
+setBoard board model =
+    let
+        valid =
+            validateBoard board
+    in
+    { model | board = board, valid = valid }
 
 
 setCell : Int -> Int -> Cell -> Board -> Board
