@@ -61,6 +61,15 @@ view model =
         , Html.button
             [ class "border rounded py-2 px-4 mb-5 bg-gray-800 text-gray-50 dark:bg-gray-50 dark:text-gray-800", onClick ToggleDarkMode ]
             [ Html.text "Toggle Dark Mode" ]
+        , Html.span [ class "ml-5 dark:text-white" ]
+            [ Html.text
+                (if model.boardModel.valid then
+                    "valid"
+
+                 else
+                    "invalid"
+                )
+            ]
         , Html.map BoardMsg (Board.view model.boardModel)
         ]
 

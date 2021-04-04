@@ -6,6 +6,7 @@ import Html
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
+import Set
 
 
 type Cell
@@ -59,7 +60,79 @@ initialModel =
 
 validateBoard : Board -> Bool
 validateBoard board =
-    True
+    let
+        isEmptyCell cell =
+            case cell of
+                CellEmpty ->
+                    True
+
+                _ ->
+                    False
+
+        cellValue cell =
+            case cell of
+                Cell n ->
+                    n
+
+                CellUser n ->
+                    n
+
+                _ ->
+                    0
+
+        valid =
+            List.range 0 8
+                |> List.map
+                    (\rowIndex ->
+                        let
+                            row_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            Array.get rowIndex board
+                                                |> Maybe.andThen (Array.get colIndex)
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            col_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            Array.get colIndex board
+                                                |> Maybe.andThen (Array.get rowIndex)
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            square_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            Array.get (modBy 3 rowIndex * 3 + modBy 3 colIndex) board
+                                                |> Maybe.andThen (Array.get (rowIndex // 3 * 3 + colIndex // 3))
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            rowInvalid =
+                                Set.size (Set.fromList row_) /= List.length row_
+
+                            colInvalid =
+                                Set.size (Set.fromList col_) /= List.length col_
+
+                            squareInvalid =
+                                Set.size (Set.fromList square_) /= List.length square_
+                        in
+                        rowInvalid || colInvalid || squareInvalid
+                    )
+                |> List.any identity
+                |> not
+    in
+    valid
 
 
 fromList : List (List Int) -> Board
@@ -293,8 +366,11 @@ update msg model =
                                         )
                             )
                         |> Maybe.withDefault model.board
+
+                valid =
+                    validateBoard newBoard
             in
-            { model | board = newBoard }
+            { model | board = newBoard, valid = valid }
 
         CellKeyPressed (NumberKey n) ->
             let
@@ -317,8 +393,11 @@ update msg model =
                                         )
                             )
                         |> Maybe.withDefault model.board
+
+                valid =
+                    validateBoard newBoard
             in
-            { model | board = newBoard }
+            { model | board = newBoard, valid = valid }
 
 
 view : Model -> Html.Html Msg
