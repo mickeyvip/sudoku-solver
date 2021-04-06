@@ -199,6 +199,11 @@ getCell rowIndex colIndex board =
             )
 
 
+getSquareCoords : Int -> Int -> CellCoords
+getSquareCoords rowIndex colIndex =
+    CellCoords ( rowIndex // 3, colIndex // 3 )
+
+
 update : Msg -> Model -> Model
 update msg model =
     case msg of
@@ -223,89 +228,24 @@ update msg model =
 
         CellKeyPressed (NavigationKey direction) ->
             let
-                getPreviousRowIndex : Int -> Int -> Maybe Int
-                getPreviousRowIndex rowIndex colIndex =
-                    model.board
-                        |> Array.indexedMap Tuple.pair
-                        |> Array.slice 0 rowIndex
-                        |> Array.filter
-                            (\( _, row ) ->
-                                case Array.get colIndex row of
-                                    Just (Cell _) ->
-                                        False
+                boardLength =
+                    Array.length model.board
 
-                                    Nothing ->
-                                        False
+                getPreviousRowIndex : Int -> Int
+                getPreviousRowIndex rowIndex =
+                    max 0 (rowIndex - 1)
 
-                                    _ ->
-                                        True
-                            )
-                        |> (\indexedRows -> Array.get (Array.length indexedRows - 1) indexedRows)
-                        |> Maybe.map Tuple.first
+                getNextRowIndex : Int -> Int
+                getNextRowIndex rowIndex =
+                    min (boardLength - 1) (rowIndex + 1)
 
-                getNextRowIndex : Int -> Int -> Maybe Int
-                getNextRowIndex rowIndex colIndex =
-                    model.board
-                        |> Array.indexedMap Tuple.pair
-                        |> Array.slice (rowIndex + 1) (Array.length model.board)
-                        |> Array.filter
-                            (\( _, row ) ->
-                                case Array.get colIndex row of
-                                    Just (Cell _) ->
-                                        False
+                getPreviousColIndex : Int -> Int
+                getPreviousColIndex colIndex =
+                    max 0 (colIndex - 1)
 
-                                    Nothing ->
-                                        False
-
-                                    _ ->
-                                        True
-                            )
-                        |> Array.get 0
-                        |> Maybe.map Tuple.first
-
-                getPreviousColIndex : Int -> Int -> Maybe Int
-                getPreviousColIndex rowIndex colIndex =
-                    model.board
-                        |> Array.get rowIndex
-                        |> Maybe.andThen
-                            (\row ->
-                                row
-                                    |> Array.indexedMap Tuple.pair
-                                    |> Array.slice 0 colIndex
-                                    |> Array.filter
-                                        (\( _, cell ) ->
-                                            case cell of
-                                                Cell _ ->
-                                                    False
-
-                                                _ ->
-                                                    True
-                                        )
-                                    |> (\indexedCells -> Array.get (Array.length indexedCells - 1) indexedCells)
-                                    |> Maybe.map Tuple.first
-                            )
-
-                getNextColIndex : Int -> Int -> Maybe Int
-                getNextColIndex rowIndex colIndex =
-                    model.board
-                        |> Array.get rowIndex
-                        |> Maybe.andThen
-                            (\row ->
-                                row
-                                    |> Array.indexedMap Tuple.pair
-                                    |> Array.slice (colIndex + 1) (Array.length row)
-                                    |> Array.filter
-                                        (\( _, cell ) ->
-                                            case cell of
-                                                Cell _ ->
-                                                    False
-
-                                                _ ->
-                                                    True
-                                        )
-                                    |> (\indexedCells -> Array.get 0 indexedCells)
-                                    |> Maybe.map Tuple.first
-                            )
+                getNextColIndex : Int -> Int
+                getNextColIndex colIndex =
+                    min (boardLength - 1) (colIndex + 1)
 
                 newSelectedCell : Maybe CellCoords
                 newSelectedCell =
@@ -314,36 +254,16 @@ update msg model =
                             (\(CellCoords ( rowIndex, colIndex )) ->
                                 case direction of
                                     Up ->
-                                        case getPreviousRowIndex rowIndex colIndex of
-                                            Just previousRowIndex ->
-                                                Just (CellCoords ( previousRowIndex, colIndex ))
-
-                                            _ ->
-                                                Just (CellCoords ( rowIndex, colIndex ))
+                                        Just (CellCoords ( getPreviousRowIndex rowIndex, colIndex ))
 
                                     Down ->
-                                        case getNextRowIndex rowIndex colIndex of
-                                            Just nextRowIndex ->
-                                                Just (CellCoords ( nextRowIndex, colIndex ))
-
-                                            _ ->
-                                                Just (CellCoords ( rowIndex, colIndex ))
+                                        Just (CellCoords ( getNextRowIndex rowIndex, colIndex ))
 
                                     Left ->
-                                        case getPreviousColIndex rowIndex colIndex of
-                                            Just previousColIndex ->
-                                                Just (CellCoords ( rowIndex, previousColIndex ))
-
-                                            _ ->
-                                                Just (CellCoords ( rowIndex, colIndex ))
+                                        Just (CellCoords ( rowIndex, getPreviousColIndex colIndex ))
 
                                     Right ->
-                                        case getNextColIndex rowIndex colIndex of
-                                            Just nextColIndex ->
-                                                Just (CellCoords ( rowIndex, nextColIndex ))
-
-                                            _ ->
-                                                Just (CellCoords ( rowIndex, colIndex ))
+                                        Just (CellCoords ( rowIndex, getNextColIndex colIndex ))
                             )
             in
             { model | selectedCell = newSelectedCell }
@@ -430,15 +350,52 @@ rowView board selectedCell groupIndex rowInGroupIndex =
         )
 
 
+hoverCellClassName : String
+hoverCellClassName =
+    "hover:bg-gray-200 dark:hover:bg-gray-600"
+
+
+selectedCellClassName : String
+selectedCellClassName =
+    "bg-blue-100 dark:bg-gray-400"
+
+
 cellView : Board -> Maybe CellCoords -> Int -> Int -> Html.Html Msg
 cellView board selectedCell rowIndex colIndex =
     let
-        cellMaybe =
-            Array.get rowIndex board
-                |> Maybe.andThen (\row -> Array.get colIndex row)
+        cellOnPath : Bool
+        cellOnPath =
+            case selectedCell of
+                Just (CellCoords ( rowSelectedIndex, colSelectedIndex )) ->
+                    let
+                        sameRow =
+                            rowIndex == rowSelectedIndex
 
-        ( cellStr, cellClassName ) =
-            cellMaybe
+                        sameCol =
+                            colIndex == colSelectedIndex
+
+                        sameSquare =
+                            getSquareCoords rowIndex colIndex == getSquareCoords rowSelectedIndex colSelectedIndex
+                    in
+                    if rowIndex == rowSelectedIndex && colIndex == colSelectedIndex then
+                        False
+
+                    else
+                        sameRow || sameCol || sameSquare
+
+                Nothing ->
+                    False
+
+        cellOnPathClass : String
+        cellOnPathClass =
+            if cellOnPath then
+                "bg-gray-200 dark:bg-gray-600"
+
+            else
+                ""
+
+        ( cellStr, cellClass ) =
+            getCell rowIndex colIndex board
                 |> Maybe.map
                     (\cell ->
                         case cell of
@@ -446,34 +403,37 @@ cellView board selectedCell rowIndex colIndex =
                                 ( String.fromInt val, "text-gray-600 dark:text-gray-50" )
 
                             CellUser val ->
-                                ( String.fromInt val, "hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-500 dark:text-blue-300" )
+                                ( String.fromInt val, "text-blue-500 dark:text-blue-300" )
 
                             CellEmpty ->
-                                ( "", "hover:bg-gray-200 dark:hover:bg-gray-600 duration-150 ease-in" )
+                                ( "", "duration-100 ease-in" )
                     )
                 |> Maybe.withDefault ( "", "" )
 
-        className =
+        cellBorderClass : String
+        cellBorderClass =
             if modBy 3 (colIndex + 1) == 0 then
                 "cell-third"
 
             else
                 "border-gray-400"
 
-        selectedCellClassName =
+        selectedCellClass : String
+        selectedCellClass =
             case selectedCell of
                 Just (CellCoords ( rowIndexSelected, colIndexSelected )) ->
                     if rowIndex == rowIndexSelected && colIndex == colIndexSelected then
-                        "bg-gray-300 dark:bg-gray-500"
+                        selectedCellClassName
 
                     else
-                        ""
+                        hoverCellClassName
 
                 Nothing ->
                     ""
 
+        classNames : List String
         classNames =
-            [ "w-12 h-12 border-r-2 border-b-2 text-3xl", className, cellClassName, selectedCellClassName ]
+            [ "w-12 h-12 border-r-2 border-b-2 text-3xl", cellOnPathClass, cellBorderClass, cellClass, selectedCellClass ]
     in
     Html.td
         [ class (String.join " " classNames), onClick (CellClick (CellCoords ( rowIndex, colIndex ))) ]
