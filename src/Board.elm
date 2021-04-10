@@ -1,4 +1,4 @@
-module Board exposing (Board, Model, Msg, fromList, initialModel, setBoard, subscriptions, update, view)
+module Board exposing (Board, Cell, Model, Msg, boardCell, emptyBoard, emptyCell, fromList, getCell, initialModel, isBoardCell, isEmptyCell, isUserCell, setBoard, setCell, subscriptions, update, userCell, view)
 
 import Array exposing (Array)
 import Browser.Events exposing (onKeyDown)
@@ -61,14 +61,6 @@ initialModel =
 validateBoard : Board -> Bool
 validateBoard board =
     let
-        isEmptyCell cell =
-            case cell of
-                CellEmpty ->
-                    True
-
-                _ ->
-                    False
-
         cellValue cell =
             case cell of
                 Cell n ->
@@ -135,6 +127,71 @@ validateBoard board =
     valid
 
 
+
+{- Cell query -}
+
+
+isEmptyCell : Cell -> Bool
+isEmptyCell cell =
+    case cell of
+        CellEmpty ->
+            True
+
+        _ ->
+            False
+
+
+isBoardCell : Cell -> Bool
+isBoardCell cell =
+    case cell of
+        Cell _ ->
+            True
+
+        _ ->
+            False
+
+
+isUserCell : Cell -> Bool
+isUserCell cell =
+    case cell of
+        CellUser _ ->
+            True
+
+        _ ->
+            False
+
+
+
+{- Cell creation -}
+
+
+emptyCell : Cell
+emptyCell =
+    CellEmpty
+
+
+boardCell : Int -> Maybe Cell
+boardCell n =
+    if n >= 1 && n <= 9 then
+        Just (Cell n)
+
+    else
+        Nothing
+
+
+userCell : Int -> Maybe Cell
+userCell n =
+    if n >= 1 && n <= 9 then
+        Just (CellUser n)
+
+    else
+        Nothing
+
+
+
+{- Board  creation -}
+
+
 fromList : List (List Int) -> Board
 fromList boardAsList =
     let
@@ -190,6 +247,10 @@ setCell rowIndex colIndex newCell board =
         |> Maybe.withDefault board
 
 
+
+{- Board query -}
+
+
 getCell : Int -> Int -> Board -> Maybe Cell
 getCell rowIndex colIndex board =
     Array.get rowIndex board
@@ -202,6 +263,10 @@ getCell rowIndex colIndex board =
 getSquareCoords : Int -> Int -> CellCoords
 getSquareCoords rowIndex colIndex =
     CellCoords ( rowIndex // 3, colIndex // 3 )
+
+
+
+{- Update -}
 
 
 update : Msg -> Model -> Model
@@ -318,6 +383,10 @@ update msg model =
                     validateBoard newBoard
             in
             { model | board = newBoard, valid = valid }
+
+
+
+{- Views -}
 
 
 view : Model -> Html.Html Msg
@@ -440,6 +509,10 @@ cellView board selectedCell rowIndex colIndex =
         [ Html.text cellStr ]
 
 
+
+{- Events and decoders -}
+
+
 cellKeyNumberDecoder : Decode.Decoder Msg
 cellKeyNumberDecoder =
     Decode.field "key" Decode.string
@@ -492,6 +565,10 @@ cellKeyActionDecoder =
 cellKeyDecoder : Decode.Decoder Msg
 cellKeyDecoder =
     Decode.oneOf [ cellKeyNumberDecoder, cellKeyActionDecoder ]
+
+
+
+{- Subscriptions -}
 
 
 subscriptions : Model -> Sub Msg
