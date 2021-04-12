@@ -398,16 +398,16 @@ view model =
 
 
 groupView : Board -> Maybe CellCoords -> Int -> Html.Html Msg
-groupView board selectedCell groupIndex =
+groupView board selectedCellCoordsMaybe groupIndex =
     Html.tbody
         [ class "border-4 border-gray-500 dark:border-gray-200" ]
         (List.range 0 2
-            |> List.map (rowView board selectedCell groupIndex)
+            |> List.map (rowView board selectedCellCoordsMaybe groupIndex)
         )
 
 
 rowView : Board -> Maybe CellCoords -> Int -> Int -> Html.Html Msg
-rowView board selectedCell groupIndex rowInGroupIndex =
+rowView board selectedCellCoordsMaybe groupIndex rowInGroupIndex =
     let
         rowIndex : Int
         rowIndex =
@@ -415,7 +415,7 @@ rowView board selectedCell groupIndex rowInGroupIndex =
     in
     Html.tr []
         (List.range 0 8
-            |> List.map (cellView board selectedCell rowIndex)
+            |> List.map (cellView board selectedCellCoordsMaybe rowIndex)
         )
 
 
@@ -430,11 +430,23 @@ selectedCellClassName =
 
 
 cellView : Board -> Maybe CellCoords -> Int -> Int -> Html.Html Msg
-cellView board selectedCell rowIndex colIndex =
+cellView board selectedCellCoordsMaybe rowIndex colIndex =
     let
+        currentCellMaybe : Maybe Cell
+        currentCellMaybe =
+            getCell rowIndex colIndex board
+
+        selectedCellMaybe : Maybe Cell
+        selectedCellMaybe =
+            selectedCellCoordsMaybe
+                |> Maybe.andThen
+                    (\(CellCoords ( rowSelectedIndex, colSelectedIndex )) ->
+                        getCell rowSelectedIndex colSelectedIndex board
+                    )
+
         cellOnPath : Bool
         cellOnPath =
-            case selectedCell of
+            case selectedCellCoordsMaybe of
                 Just (CellCoords ( rowSelectedIndex, colSelectedIndex )) ->
                     let
                         sameRow =
@@ -455,6 +467,40 @@ cellView board selectedCell rowIndex colIndex =
                 Nothing ->
                     False
 
+        cellWithSameValue : Bool
+        cellWithSameValue =
+            Maybe.map2
+                (\currentCellValue selectedCell ->
+                    case selectedCell of
+                        CellEmpty ->
+                            False
+
+                        Cell selectedCellValue ->
+                            case currentCellValue of
+                                CellEmpty ->
+                                    False
+
+                                Cell cellValue ->
+                                    selectedCellValue == cellValue
+
+                                CellUser cellUserValue ->
+                                    selectedCellValue == cellUserValue
+
+                        CellUser selectedCellValue ->
+                            case currentCellValue of
+                                CellEmpty ->
+                                    False
+
+                                Cell cellValue ->
+                                    selectedCellValue == cellValue
+
+                                CellUser cellUserValue ->
+                                    selectedCellValue == cellUserValue
+                )
+                currentCellMaybe
+                selectedCellMaybe
+                |> Maybe.withDefault False
+
         cellOnPathClass : String
         cellOnPathClass =
             if cellOnPath then
@@ -464,7 +510,7 @@ cellView board selectedCell rowIndex colIndex =
                 ""
 
         ( cellStr, cellClass ) =
-            getCell rowIndex colIndex board
+            currentCellMaybe
                 |> Maybe.map
                     (\cell ->
                         case cell of
@@ -489,9 +535,9 @@ cellView board selectedCell rowIndex colIndex =
 
         selectedCellClass : String
         selectedCellClass =
-            case selectedCell of
+            case selectedCellCoordsMaybe of
                 Just (CellCoords ( rowIndexSelected, colIndexSelected )) ->
-                    if rowIndex == rowIndexSelected && colIndex == colIndexSelected then
+                    if (rowIndex == rowIndexSelected && colIndex == colIndexSelected) || cellWithSameValue then
                         selectedCellClassName
 
                     else
