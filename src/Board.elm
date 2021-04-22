@@ -1,4 +1,4 @@
-module Board exposing (Board, Cell, Model, Msg, boardCell, emptyBoard, emptyCell, fromList, getCell, initialModel, isBoardCell, isEmptyCell, isUserCell, setBoard, setCell, subscriptions, update, userCell, view)
+module Board exposing (Board, Cell, CellCoords(..), Model, Msg, boardCell, emptyBoard, emptyCell, fromList, getCell, getEmptyCellsCellCoords, initialModel, isBoardCell, isBoardFull, isBoardValid, isEmptyCell, isUserCell, setBoard, setCell, subscriptions, update, userCell, view)
 
 import Array exposing (Array)
 import Browser.Events exposing (onKeyDown)
@@ -56,75 +56,6 @@ emptyBoard =
 initialModel : Model
 initialModel =
     Model emptyBoard Nothing True
-
-
-validateBoard : Board -> Bool
-validateBoard board =
-    let
-        cellValue cell =
-            case cell of
-                Cell n ->
-                    n
-
-                CellUser n ->
-                    n
-
-                _ ->
-                    0
-
-        valid =
-            List.range 0 8
-                |> List.map
-                    (\rowIndex ->
-                        let
-                            row_ =
-                                List.range 0 8
-                                    |> List.map
-                                        (\colIndex ->
-                                            Array.get rowIndex board
-                                                |> Maybe.andThen (Array.get colIndex)
-                                                |> Maybe.withDefault CellEmpty
-                                        )
-                                    |> List.filter (not << isEmptyCell)
-                                    |> List.map cellValue
-
-                            col_ =
-                                List.range 0 8
-                                    |> List.map
-                                        (\colIndex ->
-                                            Array.get colIndex board
-                                                |> Maybe.andThen (Array.get rowIndex)
-                                                |> Maybe.withDefault CellEmpty
-                                        )
-                                    |> List.filter (not << isEmptyCell)
-                                    |> List.map cellValue
-
-                            square_ =
-                                List.range 0 8
-                                    |> List.map
-                                        (\colIndex ->
-                                            Array.get (modBy 3 rowIndex * 3 + modBy 3 colIndex) board
-                                                |> Maybe.andThen (Array.get (rowIndex // 3 * 3 + colIndex // 3))
-                                                |> Maybe.withDefault CellEmpty
-                                        )
-                                    |> List.filter (not << isEmptyCell)
-                                    |> List.map cellValue
-
-                            rowInvalid =
-                                Set.size (Set.fromList row_) /= List.length row_
-
-                            colInvalid =
-                                Set.size (Set.fromList col_) /= List.length col_
-
-                            squareInvalid =
-                                Set.size (Set.fromList square_) /= List.length square_
-                        in
-                        rowInvalid || colInvalid || squareInvalid
-                    )
-                |> List.any identity
-                |> not
-    in
-    valid
 
 
 
@@ -216,7 +147,7 @@ setBoard : Board -> Model -> Model
 setBoard board model =
     let
         valid =
-            validateBoard board
+            isBoardValid board
     in
     { model | board = board, valid = valid }
 
@@ -263,6 +194,105 @@ getCell rowIndex colIndex board =
 getSquareCoords : Int -> Int -> CellCoords
 getSquareCoords rowIndex colIndex =
     CellCoords ( rowIndex // 3, colIndex // 3 )
+
+
+getEmptyCellsCellCoords : Board -> Array CellCoords
+getEmptyCellsCellCoords board =
+    Array.foldl
+        (\( rowIndex, row ) acc ->
+            let
+                rowWithIndex =
+                    Array.indexedMap Tuple.pair row
+
+                emptyCellWithIndex =
+                    rowWithIndex
+                        |> Array.filter (\( _, cell ) -> isEmptyCell cell)
+                        |> Array.map (\( colIndex, _ ) -> CellCoords ( rowIndex, colIndex ))
+            in
+            Array.append acc emptyCellWithIndex
+        )
+        Array.empty
+        (Array.indexedMap Tuple.pair board)
+
+
+isBoardFull : Board -> Bool
+isBoardFull board =
+    let
+        emptyCellsCount =
+            board
+                |> getEmptyCellsCellCoords
+                |> Array.length
+    in
+    emptyCellsCount == 0
+
+
+isBoardValid : Board -> Bool
+isBoardValid board =
+    let
+        cellValue cell =
+            case cell of
+                Cell n ->
+                    n
+
+                CellUser n ->
+                    n
+
+                _ ->
+                    0
+
+        valid =
+            List.range 0 8
+                |> List.map
+                    (\rowIndex ->
+                        let
+                            row_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            board
+                                                |> getCell rowIndex colIndex
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            col_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            board
+                                                |> getCell rowIndex colIndex
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            square_ =
+                                List.range 0 8
+                                    |> List.map
+                                        (\colIndex ->
+                                            board
+                                                |> getCell (modBy 3 rowIndex * 3 + modBy 3 colIndex) (rowIndex // 3 * 3 + colIndex // 3)
+                                                |> Maybe.withDefault CellEmpty
+                                        )
+                                    |> List.filter (not << isEmptyCell)
+                                    |> List.map cellValue
+
+                            rowInvalid =
+                                Set.size (Set.fromList row_) /= List.length row_
+
+                            colInvalid =
+                                Set.size (Set.fromList col_) /= List.length col_
+
+                            squareInvalid =
+                                Set.size (Set.fromList square_) /= List.length square_
+                        in
+                        rowInvalid || colInvalid || squareInvalid
+                    )
+                |> List.any identity
+                |> not
+    in
+    valid
 
 
 
@@ -353,7 +383,7 @@ update msg model =
                         |> Maybe.withDefault model.board
 
                 valid =
-                    validateBoard newBoard
+                    isBoardValid newBoard
             in
             { model | board = newBoard, valid = valid }
 
@@ -380,7 +410,7 @@ update msg model =
                         |> Maybe.withDefault model.board
 
                 valid =
-                    validateBoard newBoard
+                    isBoardValid newBoard
             in
             { model | board = newBoard, valid = valid }
 
